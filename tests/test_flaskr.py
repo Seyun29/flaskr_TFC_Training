@@ -144,6 +144,43 @@ class TestFlaskr:
             # the database state is not guaranteed. In a real-world scenario,
             # you might want to set up a known database state before running this test.
 
+    def test_delete_entry_unauthorized(self, client):
+        """
+        Test that an unauthorized user cannot delete an entry.
+        """
+        # Try to delete an entry without being logged in
+        response = client.post('/delete/1', follow_redirects=True)
+        assert response.status_code == 401  # Unauthorized
+
+    def test_delete_entry_authorized(self, client, auth):
+        """
+        Test that an authorized user can delete an entry.
+        """
+        # Login
+        auth.login()
+        
+        # Add an entry
+        client.post('/add', data={
+            'title': 'Test Entry',
+            'text': 'This is a test entry to be deleted.'
+        }, follow_redirects=True)
+        
+        # Get the entries to find the ID of the one we just added
+        with app.app_context():
+            db = get_db()
+            entry = db.execute('SELECT id FROM entries WHERE title = ?', ['Test Entry']).fetchone()
+            
+        # Delete the entry
+        response = client.post(f'/delete/{entry["id"]}', follow_redirects=True)
+        assert response.status_code == 200
+        assert b'Entry was successfully deleted' in response.data
+        
+        # Verify the entry is no longer in the database
+        with app.app_context():
+            db = get_db()
+            entry = db.execute('SELECT * FROM entries WHERE title = ?', ['Test Entry']).fetchone()
+            assert entry is None
+
 
 
 class AuthActions(object):
